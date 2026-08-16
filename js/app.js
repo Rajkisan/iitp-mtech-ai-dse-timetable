@@ -32,18 +32,36 @@ function getMeetingUrl(course, item) {
   return course.classUrl;
 }
 
+function renderRecordingButton(course) {
+  if (!course.recordingUrl) return "";
+
+  return `<a class="join-btn recording" target="_blank" rel="noopener" href="${course.recordingUrl}">View Recordings</a>`;
+}
+
 function renderCourseLinks(course) {
+  let teamsLinks = "";
+
   if (course.sessionLinks?.length) {
-    return course.sessionLinks.map((link, index) => `
+    teamsLinks = course.sessionLinks.map((link, index) => `
       <a class="join-btn${index > 0 ? " alt" : ""}" target="_blank" rel="noopener" href="${link.url}">${link.label}</a>
     `).join("");
+  } else if (course.classUrl) {
+    teamsLinks = `<a class="join-btn" target="_blank" rel="noopener" href="${course.classUrl}">Join on Teams</a>`;
   }
 
-  if (course.classUrl) {
-    return `<a class="join-btn" target="_blank" rel="noopener" href="${course.classUrl}">Join on Teams</a>`;
-  }
+  return `${teamsLinks}${renderRecordingButton(course)}`;
+}
 
-  return "";
+function renderImportantLinks() {
+  const grid = document.getElementById("importantLinksGrid");
+  if (!grid) return;
+
+  grid.innerHTML = IMPORTANT_LINKS.map(link => `
+    <a class="important-link-card" href="${link.url}" target="_blank" rel="noopener noreferrer">
+      <span class="important-link-icon" aria-hidden="true">${link.icon}</span>
+      <span class="important-link-label">${link.label}</span>
+    </a>
+  `).join("");
 }
 
 function renderTimetable() {
@@ -174,6 +192,7 @@ if (today === "Friday") {
 }
 
 function renderAll() {
+  renderImportantLinks();
   renderTimetable();
   renderCourses();
   renderToday();
