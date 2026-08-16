@@ -423,7 +423,7 @@ select {
   box-shadow: none;
 }
 
-.join-btn.lab { background: #4f46e5; }
+.join-btn.alt { background: #4f46e5; }
 
 footer {
   border-top: 1px solid var(--border);

@@ -25,6 +25,27 @@ function effectiveCourse(scheduleItem) {
   return getCourse("aml");
 }
 
+function getMeetingUrl(course, item) {
+  if (course.sessionLinks?.length) {
+    return course.sessionLinks.find(link => link.lab === !!item.lab)?.url;
+  }
+  return course.classUrl;
+}
+
+function renderCourseLinks(course) {
+  if (course.sessionLinks?.length) {
+    return course.sessionLinks.map((link, index) => `
+      <a class="join-btn${index > 0 ? " alt" : ""}" target="_blank" rel="noopener" href="${link.url}">${link.label}</a>
+    `).join("");
+  }
+
+  if (course.classUrl) {
+    return `<a class="join-btn" target="_blank" rel="noopener" href="${course.classUrl}">Join on Teams</a>`;
+  }
+
+  return "";
+}
+
 function renderTimetable() {
   timetableEl.innerHTML = "";
 
@@ -69,7 +90,7 @@ function renderTimetable() {
       }
 
       const course = effectiveCourse(item);
-      slot.className = `slot ${course.type} ${item.lab ? "lab" : ""}`;
+      slot.className = `slot ${course.type} ${item.showLabTag ? "lab" : ""}`;
 
       if (course.type === "elective" && course.name !== selectedElective) {
         slot.classList.add("dimmed");
@@ -87,11 +108,11 @@ function renderTimetable() {
         <div class="slot-title">${course.shortName}</div>
         <div class="slot-code">${course.code}</div>
         <div class="slot-time">${item.time}</div>
-        ${item.lab ? '<span class="badge">Lab</span>' : ''}
+        ${item.showLabTag ? '<span class="badge">Lab</span>' : ''}
       `;
 
       slot.addEventListener("click", () => {
-        const url = item.lab ? (course.labUrl || course.classUrl) : course.classUrl;
+        const url = getMeetingUrl(course, item);
         if (url) window.open(url, "_blank", "noopener,noreferrer");
       });
 
@@ -112,8 +133,7 @@ function renderCourses() {
       <h3>${course.name}</h3>
       <div class="course-code">${course.code}</div>
       <div class="link-row">
-        ${course.classUrl ? `<a class="join-btn" target="_blank" rel="noopener" href="${course.classUrl}">Join Class</a>` : ""}
-        ${course.labUrl ? `<a class="join-btn lab" target="_blank" rel="noopener" href="${course.labUrl}">Join Lab</a>` : ""}
+        ${renderCourseLinks(course)}
       </div>
     `;
 
@@ -148,7 +168,7 @@ if (today === "Friday") {
   todayClassesEl.innerHTML = todaySchedule.map(({ item, course }) => `
     <div class="today-item">
       <strong>${item.time}</strong>
-      <span>${course.shortName}${item.lab ? " · Lab" : ""}</span>
+      <span>${course.shortName}${item.showLabTag ? " · Lab" : ""}</span>
     </div>
   `).join("");
 }
