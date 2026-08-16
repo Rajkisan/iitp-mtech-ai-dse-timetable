@@ -1,6 +1,6 @@
 :root {
   --navy: #0f2f68;
-  --blue: #1d4ed8;
+  --blue: #2962ff;
   --blue-soft: #dbeafe;
   --blue-border: #93c5fd;
   --yellow-soft: #fef3c7;
@@ -543,7 +543,7 @@ select {
   box-shadow: none;
 }
 
-.join-btn.alt { background: #4f46e5; }
+.join-btn.alt { background: #8e24aa; }
 
 .join-btn.recording {
   background: #0f766e;
