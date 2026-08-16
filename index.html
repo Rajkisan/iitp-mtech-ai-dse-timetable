@@ -46,18 +46,7 @@
       <p class="muted collapse-note">Quick access from the <a class="inline-link" href="https://cetpgex.iitp.ac.in/index.php" target="_blank" rel="noopener noreferrer">CET PG portal</a>.</p>
       <div class="important-links-grid" id="importantLinksGrid"></div>
     </details>
-    <section class="elective-panel">
-      <div>
-        <p class="panel-label">Your elective</p>
-        <h3>Select one elective to personalize your timetable</h3>
-        <p class="muted">Regular courses are always shown. Your selected elective is highlighted.</p>
-      </div>
-      <select id="electiveSelect" aria-label="Select your elective">
-        <option value="Computational Data Analysis">Computational Data Analysis</option>
-        <option value="Pattern Recognition">Pattern Recognition</option>
-        <option value="Advanced Machine Learning">Advanced Machine Learning</option>
-      </select>
-    </section>
+    
 
     <div class="legend">
       <span><i class="legend-dot regular"></i> Regular course</span>
@@ -73,6 +62,18 @@
       <div id="todayClasses" class="today-classes"></div>
     </section>
 
+    <section class="elective-panel">
+      <div>
+        <p class="panel-label">Your elective</p>
+        <h3>Select one elective to personalize your timetable</h3>
+        <p class="muted">Regular courses are always shown. Your selected elective is highlighted.</p>
+      </div>
+      <select id="electiveSelect" aria-label="Select your elective">
+        <option value="Computational Data Analysis">Computational Data Analysis</option>
+        <option value="Pattern Recognition">Pattern Recognition</option>
+        <option value="Advanced Machine Learning">Advanced Machine Learning</option>
+      </select>
+    </section>
     <section class="table-wrap">
       <div class="timetable" id="timetable"></div>
     </section>
