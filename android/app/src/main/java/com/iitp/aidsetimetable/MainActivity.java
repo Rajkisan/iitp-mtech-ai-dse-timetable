@@ -27,6 +27,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "file:///android_asset/www/index.html";
@@ -446,6 +447,17 @@ public class MainActivity extends Activity {
             intent.putExtra(ReminderScheduler.EXTRA_TEXT, "Notifications are enabled for this timetable.");
             intent.putExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis());
             sendBroadcast(intent);
+        }
+
+        @JavascriptInterface
+        public void testInOneMinute() {
+            requestNotificationPermissionIfNeeded();
+            reminderScheduler.scheduleTestInOneMinute();
+            runOnUiThread(() -> Toast.makeText(
+                    MainActivity.this,
+                    "Test notification scheduled for 1 minute",
+                    Toast.LENGTH_SHORT
+            ).show());
         }
     }
 }

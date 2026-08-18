@@ -294,14 +294,15 @@ footer .inline-link { color: var(--navy); }
   accent-color: var(--blue);
 }
 
-.reminder-test {
+.reminder-test-actions {
   display: none;
   margin-top: 10px;
-  margin-left: auto;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-.android-reminders .reminder-test {
-  display: block;
+.android-reminders .reminder-test-actions {
+  display: flex;
 }
 
 .panel-label {
@@ -634,7 +635,7 @@ footer {
   .important-links-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .actions { margin-top: 14px; }
   .reminder-options { justify-content: flex-start; margin-top: 14px; }
-  .reminder-test { margin-left: 0; }
+  .reminder-test-actions { justify-content: flex-start; }
   select { width: 100%; min-width: 0; margin-top: 14px; }
   .today-classes { margin-top: 15px; }
   .footer-inner { padding: 12px 0; flex-direction: column; align-items: flex-start; }

@@ -50,6 +50,24 @@ class ReminderScheduler {
         }
     }
 
+    void scheduleTestInOneMinute() {
+        long startsAt = System.currentTimeMillis() + 60_000L;
+        int requestCode = reminderRequestCode("test-notification-" + startsAt, 0);
+
+        Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.putExtra(EXTRA_TITLE, "1 minute reminder test");
+        intent.putExtra(EXTRA_TEXT, "This scheduled notification works even after the app is closed.");
+        intent.putExtra(EXTRA_STARTS_AT, startsAt);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent, flags);
+        scheduleAlarm(startsAt, requestCode, pendingIntent);
+    }
+
     private int scheduleFromPayload(String payload) throws JSONException {
         cancelScheduled();
 
@@ -88,18 +106,35 @@ class ReminderScheduler {
         if (alarmManager == null) return;
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && !alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setAlarmClock(
+                        new AlarmManager.AlarmClockInfo(triggerAt, openAppIntent(requestCode)),
+                        pendingIntent
+                );
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             }
         } catch (SecurityException ignored) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
-            }
+            alarmManager.setAlarmClock(
+                    new AlarmManager.AlarmClockInfo(triggerAt, openAppIntent(requestCode)),
+                    pendingIntent
+            );
         }
+    }
+
+    private PendingIntent openAppIntent(int requestCode) {
+        Intent intent = new Intent(context, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        return PendingIntent.getActivity(context, requestCode, intent, flags);
     }
 
     private PendingIntent notificationIntent(

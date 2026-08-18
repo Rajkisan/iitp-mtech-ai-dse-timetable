@@ -11,6 +11,7 @@ const reminderPanelEl = document.getElementById("reminderPanel");
 const reminderOptionsEl = document.getElementById("reminderOptions");
 const reminderStatusEl = document.getElementById("reminderStatus");
 const reminderTestBtnEl = document.getElementById("reminderTestBtn");
+const reminderTestAlarmBtnEl = document.getElementById("reminderTestAlarmBtn");
 
 const REMINDER_OPTIONS = [5, 10, 15, 30, 45, 60];
 const REMINDER_LOOKAHEAD_DAYS = 30;
@@ -157,6 +158,19 @@ if (reminderTestBtnEl) {
       reminderStatusEl.textContent = "Test notification sent.";
     } catch (error) {
       reminderStatusEl.textContent = "Could not send test notification.";
+    }
+  });
+}
+
+if (reminderTestAlarmBtnEl) {
+  reminderTestAlarmBtnEl.addEventListener("click", () => {
+    if (!isAndroidApp()) return;
+
+    try {
+      window.AndroidReminders.testInOneMinute();
+      reminderStatusEl.textContent = "Test notification scheduled for 1 minute from now. You can close the app.";
+    } catch (error) {
+      reminderStatusEl.textContent = "Could not schedule test notification.";
     }
   });
 }
