@@ -30,12 +30,14 @@ npm install
 npm run android:sync
 npm run android:build
 npm run android:install
+npm run android:reinstall
 npm run release:local
 ```
 
 - `android:sync` copies the web files into `android/app/src/main/assets/www/`.
 - `android:build` creates a debug APK.
 - `android:install` installs the debug app on a connected emulator or Android device.
+- `android:reinstall` uninstalls the existing app first, then installs the debug app. Use this if Android reports `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
 - `release:local` creates a local release APK.
 
 The APK outputs are generated under:
