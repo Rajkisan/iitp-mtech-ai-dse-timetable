@@ -236,8 +236,10 @@ if (reminderTestBtnEl) {
     if (!isAndroidApp()) return;
 
     try {
-      window.AndroidReminders.test();
-      reminderStatusEl.textContent = "Test notification sent.";
+      const sent = Number(window.AndroidReminders.test());
+      reminderStatusEl.textContent = sent
+        ? "Test notification sent."
+        : "Could not send test notification. Allow notifications for this app.";
     } catch (error) {
       reminderStatusEl.textContent = "Could not send test notification.";
     }
@@ -249,8 +251,10 @@ if (reminderTestAlarmBtnEl) {
     if (!isAndroidApp()) return;
 
     try {
-      window.AndroidReminders.testInOneMinute();
-      reminderStatusEl.textContent = "Test notification scheduled for 1 minute from now. You can close the app.";
+      const scheduled = Number(window.AndroidReminders.testInOneMinute());
+      reminderStatusEl.textContent = scheduled
+        ? "Test notification scheduled for 1 minute from now. Minimize the app to test background delivery."
+        : "Could not schedule test notification. Check notification or alarm permission for this app.";
     } catch (error) {
       reminderStatusEl.textContent = "Could not schedule test notification.";
     }

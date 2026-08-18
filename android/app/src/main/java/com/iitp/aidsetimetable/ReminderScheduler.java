@@ -52,7 +52,7 @@ class ReminderScheduler {
         }
     }
 
-    void scheduleTestInOneMinute() {
+    boolean scheduleTestInOneMinute() {
         long startsAt = System.currentTimeMillis() + 60_000L;
         int requestCode = reminderRequestCode("test-notification-" + startsAt, 0);
 
@@ -70,7 +70,7 @@ class ReminderScheduler {
         }
 
         PendingIntent pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent, flags);
-        scheduleAlarm(startsAt, requestCode, pendingIntent);
+        return scheduleAlarm(startsAt, requestCode, pendingIntent);
     }
 
     private int scheduleFromPayload(String payload) throws JSONException {
@@ -98,8 +98,9 @@ class ReminderScheduler {
                 if (minutesBefore <= 0 || triggerAt <= now) continue;
 
                 int requestCode = reminderRequestCode(event.optString("id"), minutesBefore);
-                requestCodes.add(requestCode);
-                scheduleAlarm(triggerAt, requestCode, notificationIntent(event, startsAt, minutesBefore, requestCode));
+                if (scheduleAlarm(triggerAt, requestCode, notificationIntent(event, startsAt, minutesBefore, requestCode))) {
+                    requestCodes.add(requestCode);
+                }
             }
         }
 
@@ -107,40 +108,35 @@ class ReminderScheduler {
         return requestCodes.size();
     }
 
-    private void scheduleAlarm(long triggerAt, int requestCode, PendingIntent pendingIntent) {
-        if (alarmManager == null) return;
+    private boolean scheduleAlarm(long triggerAt, int requestCode, PendingIntent pendingIntent) {
+        if (alarmManager == null) return false;
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                     && !alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setAlarmClock(
-                        new AlarmManager.AlarmClockInfo(triggerAt, openAppIntent(requestCode)),
-                        pendingIntent
-                );
+                scheduleInexactAlarm(triggerAt, pendingIntent);
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
             }
-        } catch (SecurityException ignored) {
-            alarmManager.setAlarmClock(
-                    new AlarmManager.AlarmClockInfo(triggerAt, openAppIntent(requestCode)),
-                    pendingIntent
-            );
+            return true;
+        } catch (RuntimeException ignored) {
+            try {
+                scheduleInexactAlarm(triggerAt, pendingIntent);
+                return true;
+            } catch (RuntimeException ignoredAgain) {
+                return false;
+            }
         }
     }
 
-    private PendingIntent openAppIntent(int requestCode) {
-        Intent intent = new Intent(context, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        intent.setData(Uri.parse("iitp-reminder://open/" + requestCode));
-
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+    private void scheduleInexactAlarm(long triggerAt, PendingIntent pendingIntent) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
+        } else {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent);
         }
-
-        return PendingIntent.getActivity(context, requestCode, intent, flags);
     }
 
     private PendingIntent notificationIntent(

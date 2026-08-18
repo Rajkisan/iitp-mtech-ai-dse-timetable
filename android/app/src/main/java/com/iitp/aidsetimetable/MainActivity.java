@@ -463,24 +463,32 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void test() {
+        public int test() {
             requestNotificationPermissionIfNeeded();
-            Intent intent = new Intent(MainActivity.this, ReminderReceiver.class);
-            intent.putExtra(ReminderScheduler.EXTRA_TITLE, "Class reminder test");
-            intent.putExtra(ReminderScheduler.EXTRA_TEXT, "Notifications are enabled for this timetable.");
-            intent.putExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis());
-            sendBroadcast(intent);
+            try {
+                Intent intent = new Intent(MainActivity.this, ReminderReceiver.class);
+                intent.setAction(ReminderScheduler.ACTION_SHOW_REMINDER);
+                intent.setPackage(getPackageName());
+                intent.putExtra(ReminderScheduler.EXTRA_TITLE, "Class reminder test");
+                intent.putExtra(ReminderScheduler.EXTRA_TEXT, "Notifications are enabled for this timetable.");
+                intent.putExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis());
+                sendBroadcast(intent);
+                return 1;
+            } catch (Exception ignored) {
+                return 0;
+            }
         }
 
         @JavascriptInterface
-        public void testInOneMinute() {
+        public int testInOneMinute() {
             requestNotificationPermissionIfNeeded();
-            reminderScheduler.scheduleTestInOneMinute();
+            boolean scheduled = reminderScheduler.scheduleTestInOneMinute();
             runOnUiThread(() -> Toast.makeText(
                     MainActivity.this,
-                    "Test notification scheduled for 1 minute",
+                    scheduled ? "Test notification scheduled for 1 minute" : "Could not schedule test notification",
                     Toast.LENGTH_SHORT
             ).show());
+            return scheduled ? 1 : 0;
         }
     }
 }
