@@ -1,6 +1,11 @@
 let currentFilter = "all";
 let selectedElective = localStorage.getItem("iitp-ai-dse-elective") || "Computational Data Analysis";
 let selectedReminderOffsets = JSON.parse(localStorage.getItem("iitp-ai-dse-reminders") || "[10]");
+let selectedReminderCourseIds = JSON.parse(
+  localStorage.getItem("iitp-ai-dse-reminder-courses") || JSON.stringify(COURSES.map(course => course.id))
+);
+let draftReminderOffsets = [...selectedReminderOffsets];
+let draftReminderCourseIds = [...selectedReminderCourseIds];
 
 const timetableEl = document.getElementById("timetable");
 const courseGridEl = document.getElementById("courseGrid");
@@ -9,7 +14,13 @@ const todayClassesEl = document.getElementById("todayClasses");
 const electiveSelectEl = document.getElementById("electiveSelect");
 const reminderPanelEl = document.getElementById("reminderPanel");
 const reminderOptionsEl = document.getElementById("reminderOptions");
+const reminderCourseOptionsEl = document.getElementById("reminderCourseOptions");
 const reminderStatusEl = document.getElementById("reminderStatus");
+const reminderConfigureBtnEl = document.getElementById("reminderConfigureBtn");
+const reminderModalEl = document.getElementById("reminderModal");
+const reminderCloseBtnEl = document.getElementById("reminderCloseBtn");
+const reminderCancelBtnEl = document.getElementById("reminderCancelBtn");
+const reminderSaveBtnEl = document.getElementById("reminderSaveBtn");
 const reminderTestBtnEl = document.getElementById("reminderTestBtn");
 const reminderTestAlarmBtnEl = document.getElementById("reminderTestAlarmBtn");
 
@@ -48,9 +59,21 @@ function reminderLabel(minutes) {
   return minutes === 60 ? "1 hr" : `${minutes} min`;
 }
 
+function normalizeReminderSettings() {
+  selectedReminderOffsets = selectedReminderOffsets
+    .map(Number)
+    .filter(minutes => REMINDER_OPTIONS.includes(minutes));
+
+  if (!Array.isArray(selectedReminderCourseIds) || !selectedReminderCourseIds.length) {
+    selectedReminderCourseIds = COURSES.map(course => course.id);
+  }
+
+  selectedReminderCourseIds = selectedReminderCourseIds
+    .filter(id => COURSES.some(course => course.id === id));
+}
+
 function parseStartTimeMinutes(timeRange) {
-  const start = timeRange.split(/\s*(?:-|–|â€“)\s*/)[0].trim();
-  const match = start.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  const match = timeRange.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
   if (!match) return null;
 
   let hours = Number(match[1]);
@@ -79,7 +102,7 @@ function nextClassOccurrences() {
       .forEach(item => {
         const startMinutes = parseStartTimeMinutes(item.time);
         const course = effectiveCourse(item);
-        if (startMinutes === null || !course) return;
+        if (startMinutes === null || !course || !selectedReminderCourseIds.includes(course.id)) return;
 
         const startsAt = new Date(date);
         startsAt.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
@@ -88,6 +111,7 @@ function nextClassOccurrences() {
 
         events.push({
           id: `${startsAt.toISOString()}-${course.id}-${item.time}`,
+          courseId: course.id,
           title: course.shortName,
           text: `${item.time}${item.showLabTag ? " · Lab" : ""}`,
           startsAt: startsAt.getTime(),
@@ -101,9 +125,10 @@ function nextClassOccurrences() {
 
 function syncAndroidReminders() {
   if (!reminderStatusEl) return;
+  normalizeReminderSettings();
 
   if (!isAndroidApp()) {
-    reminderStatusEl.textContent = "Available in the Android app.";
+    reminderStatusEl.textContent = "Reminder scheduling is available in the Android app.";
     return;
   }
 
@@ -115,8 +140,8 @@ function syncAndroidReminders() {
   try {
     const scheduledCount = window.AndroidReminders.configure(JSON.stringify(payload));
     const count = Number(scheduledCount) || 0;
-    reminderStatusEl.textContent = selectedReminderOffsets.length
-      ? `Scheduled ${count} class reminders for the next ${REMINDER_LOOKAHEAD_DAYS} days.`
+    reminderStatusEl.textContent = selectedReminderOffsets.length && selectedReminderCourseIds.length
+      ? `Saved ${selectedReminderOffsets.length} reminder time${selectedReminderOffsets.length === 1 ? "" : "s"} for ${selectedReminderCourseIds.length} course${selectedReminderCourseIds.length === 1 ? "" : "s"}. ${count} upcoming notifications scheduled.`
       : "Class reminders are off.";
   } catch (error) {
     reminderStatusEl.textContent = "Could not update Android reminders.";
@@ -125,28 +150,85 @@ function syncAndroidReminders() {
 
 function renderReminderSettings() {
   if (!reminderPanelEl || !reminderOptionsEl) return;
+  normalizeReminderSettings();
 
   if (isAndroidApp()) {
     reminderPanelEl.classList.add("android-reminders");
   }
 
+  draftReminderOffsets = [...selectedReminderOffsets];
+  draftReminderCourseIds = [...selectedReminderCourseIds];
+  renderReminderModalOptions();
+  syncAndroidReminders();
+}
+
+function renderReminderModalOptions() {
+  if (!reminderOptionsEl || !reminderCourseOptionsEl) return;
+
   reminderOptionsEl.innerHTML = REMINDER_OPTIONS.map(minutes => `
     <label class="reminder-option">
-      <input type="checkbox" value="${minutes}" ${selectedReminderOffsets.includes(minutes) ? "checked" : ""} />
+      <input type="checkbox" value="${minutes}" ${draftReminderOffsets.includes(minutes) ? "checked" : ""} />
       <span>${reminderLabel(minutes)}</span>
+    </label>
+  `).join("");
+
+  reminderCourseOptionsEl.innerHTML = COURSES.map(course => `
+    <label class="course-reminder-option">
+      <span>
+        <strong>${course.shortName}</strong>
+        <small>${course.code}</small>
+      </span>
+      <input type="checkbox" value="${course.id}" ${draftReminderCourseIds.includes(course.id) ? "checked" : ""} />
     </label>
   `).join("");
 
   reminderOptionsEl.querySelectorAll("input").forEach(input => {
     input.addEventListener("change", () => {
-      selectedReminderOffsets = [...reminderOptionsEl.querySelectorAll("input:checked")]
+      draftReminderOffsets = [...reminderOptionsEl.querySelectorAll("input:checked")]
         .map(item => Number(item.value));
-      localStorage.setItem("iitp-ai-dse-reminders", JSON.stringify(selectedReminderOffsets));
-      syncAndroidReminders();
     });
   });
 
+  reminderCourseOptionsEl.querySelectorAll("input").forEach(input => {
+    input.addEventListener("change", () => {
+      draftReminderCourseIds = [...reminderCourseOptionsEl.querySelectorAll("input:checked")]
+        .map(item => item.value);
+    });
+  });
+}
+
+function openReminderModal() {
+  draftReminderOffsets = [...selectedReminderOffsets];
+  draftReminderCourseIds = [...selectedReminderCourseIds];
+  renderReminderModalOptions();
+  reminderModalEl.classList.add("open");
+  reminderModalEl.setAttribute("aria-hidden", "false");
+}
+
+function closeReminderModal() {
+  reminderModalEl.classList.remove("open");
+  reminderModalEl.setAttribute("aria-hidden", "true");
+}
+
+function saveReminderSettings() {
+  selectedReminderOffsets = [...draftReminderOffsets].sort((a, b) => a - b);
+  selectedReminderCourseIds = [...draftReminderCourseIds];
+
+  localStorage.setItem("iitp-ai-dse-reminders", JSON.stringify(selectedReminderOffsets));
+  localStorage.setItem("iitp-ai-dse-reminder-courses", JSON.stringify(selectedReminderCourseIds));
+
   syncAndroidReminders();
+  closeReminderModal();
+}
+
+if (reminderConfigureBtnEl) reminderConfigureBtnEl.addEventListener("click", openReminderModal);
+if (reminderCloseBtnEl) reminderCloseBtnEl.addEventListener("click", closeReminderModal);
+if (reminderCancelBtnEl) reminderCancelBtnEl.addEventListener("click", closeReminderModal);
+if (reminderSaveBtnEl) reminderSaveBtnEl.addEventListener("click", saveReminderSettings);
+if (reminderModalEl) {
+  reminderModalEl.addEventListener("click", event => {
+    if (event.target === reminderModalEl) closeReminderModal();
+  });
 }
 
 if (reminderTestBtnEl) {

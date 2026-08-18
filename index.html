@@ -65,16 +65,43 @@
       <div>
         <p class="panel-label">Android reminders</p>
         <h3>Class notifications</h3>
-        <p class="muted" id="reminderStatus">Choose when the app should remind you before class.</p>
+        <p class="muted" id="reminderStatus">Configure class reminders for the Android app.</p>
       </div>
-      <div>
-        <div class="reminder-options" id="reminderOptions" aria-label="Class reminder times"></div>
+      <div class="reminder-actions">
+        <button class="btn primary" id="reminderConfigureBtn" type="button">Configure</button>
         <div class="reminder-test-actions">
           <button class="btn reminder-test" id="reminderTestBtn" type="button">Test now</button>
           <button class="btn reminder-test" id="reminderTestAlarmBtn" type="button">Test in 1 min</button>
         </div>
       </div>
     </section>
+
+    <div class="modal-backdrop" id="reminderModal" aria-hidden="true">
+      <section class="reminder-modal" role="dialog" aria-modal="true" aria-labelledby="reminderModalTitle">
+        <div class="modal-head">
+          <div>
+            <p class="panel-label">Reminder setup</p>
+            <h3 id="reminderModalTitle">Class notifications</h3>
+          </div>
+          <button class="btn icon-btn" id="reminderCloseBtn" type="button" aria-label="Close reminder setup">&times;</button>
+        </div>
+
+        <div class="modal-section">
+          <h4>Notify before class</h4>
+          <div class="reminder-options" id="reminderOptions" aria-label="Class reminder times"></div>
+        </div>
+
+        <div class="modal-section">
+          <h4>Apply to courses</h4>
+          <div class="course-reminder-list" id="reminderCourseOptions" aria-label="Courses for reminders"></div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" id="reminderCancelBtn" type="button">Cancel</button>
+          <button class="btn primary" id="reminderSaveBtn" type="button">Save reminders</button>
+        </div>
+      </section>
+    </div>
 
     <section class="elective-panel">
       <div>

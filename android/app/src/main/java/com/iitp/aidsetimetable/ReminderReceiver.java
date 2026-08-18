@@ -15,12 +15,6 @@ import android.os.Build;
 public class ReminderReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (notificationManager == null) return;
@@ -30,6 +24,16 @@ public class ReminderReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra(ReminderScheduler.EXTRA_TITLE);
         String text = intent.getStringExtra(ReminderScheduler.EXTRA_TEXT);
         String moodleUrl = intent.getStringExtra(ReminderScheduler.EXTRA_MOODLE_URL);
+        String displayTitle = title == null || title.isEmpty() ? "Class reminder" : title;
+        String displayText = text == null || text.isEmpty() ? "Your class starts soon." : text;
+
+        MainActivity.showForegroundReminder(displayTitle, displayText);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
 
         Intent openIntent = new Intent(context, MainActivity.class);
         openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -53,11 +57,17 @@ public class ReminderReceiver extends BroadcastReceiver {
                 : new android.app.Notification.Builder(context);
 
         builder.setSmallIcon(R.drawable.ic_launcher)
-                .setContentTitle(title == null || title.isEmpty() ? "Class reminder" : title)
-                .setContentText(text == null || text.isEmpty() ? "Your class starts soon." : text)
+                .setContentTitle(displayTitle)
+                .setContentText(displayText)
                 .setContentIntent(contentIntent)
+                .setCategory(android.app.Notification.CATEGORY_ALARM)
+                .setDefaults(android.app.Notification.DEFAULT_ALL)
                 .setAutoCancel(true)
                 .setShowWhen(true);
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            builder.setPriority(android.app.Notification.PRIORITY_HIGH);
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setColor(Color.rgb(15, 47, 104));
@@ -79,6 +89,8 @@ public class ReminderReceiver extends BroadcastReceiver {
                 NotificationManager.IMPORTANCE_HIGH
         );
         channel.setDescription("Notifications before scheduled classes");
+        channel.enableVibration(true);
+        channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         notificationManager.createNotificationChannel(channel);
     }
 }

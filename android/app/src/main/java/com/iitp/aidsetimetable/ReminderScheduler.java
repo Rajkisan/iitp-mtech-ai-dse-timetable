@@ -5,6 +5,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 
 import org.json.JSONArray;
@@ -15,11 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 class ReminderScheduler {
-    static final String CHANNEL_ID = "class_reminders";
+    static final String CHANNEL_ID = "class_reminders_v2";
     static final String EXTRA_TITLE = "title";
     static final String EXTRA_TEXT = "text";
     static final String EXTRA_STARTS_AT = "startsAt";
     static final String EXTRA_MOODLE_URL = "moodleUrl";
+    static final String ACTION_SHOW_REMINDER = "com.iitp.aidsetimetable.SHOW_REMINDER";
     private static final String PREFS_NAME = "class_reminders";
     private static final String PAYLOAD_KEY = "payload";
     private static final String REQUEST_CODES_KEY = "requestCodes";
@@ -55,6 +57,9 @@ class ReminderScheduler {
         int requestCode = reminderRequestCode("test-notification-" + startsAt, 0);
 
         Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.setAction(ACTION_SHOW_REMINDER);
+        intent.setPackage(context.getPackageName());
+        intent.setData(Uri.parse("iitp-reminder://test/" + requestCode));
         intent.putExtra(EXTRA_TITLE, "1 minute reminder test");
         intent.putExtra(EXTRA_TEXT, "This scheduled notification works even after the app is closed.");
         intent.putExtra(EXTRA_STARTS_AT, startsAt);
@@ -128,6 +133,7 @@ class ReminderScheduler {
     private PendingIntent openAppIntent(int requestCode) {
         Intent intent = new Intent(context, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.setData(Uri.parse("iitp-reminder://open/" + requestCode));
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -144,6 +150,9 @@ class ReminderScheduler {
             int requestCode
     ) {
         Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.setAction(ACTION_SHOW_REMINDER);
+        intent.setPackage(context.getPackageName());
+        intent.setData(Uri.parse("iitp-reminder://class/" + requestCode));
         intent.putExtra(EXTRA_TITLE, event.optString("title", "Class reminder"));
         intent.putExtra(EXTRA_TEXT, reminderText(event.optString("text", ""), minutesBefore));
         intent.putExtra(EXTRA_STARTS_AT, startsAt);
@@ -182,6 +191,9 @@ class ReminderScheduler {
         if (alarmManager == null) return;
 
         Intent intent = new Intent(context, ReminderReceiver.class);
+        intent.setAction(ACTION_SHOW_REMINDER);
+        intent.setPackage(context.getPackageName());
+        intent.setData(Uri.parse("iitp-reminder://class/" + requestCode));
         int flags = PendingIntent.FLAG_NO_CREATE;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;

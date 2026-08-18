@@ -29,9 +29,13 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import java.lang.ref.WeakReference;
+
 public class MainActivity extends Activity {
     private static final String HOME_URL = "file:///android_asset/www/index.html";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 5101;
+    private static WeakReference<MainActivity> activeActivity = new WeakReference<>(null);
+    private boolean resumed;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -104,7 +108,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         flushCookies();
+        resumed = false;
         super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        resumed = true;
+        activeActivity = new WeakReference<>(this);
     }
 
     @Override
@@ -152,6 +164,17 @@ public class MainActivity extends Activity {
                     NOTIFICATION_PERMISSION_REQUEST
             ));
         }
+    }
+
+    static void showForegroundReminder(String title, String text) {
+        MainActivity activity = activeActivity.get();
+        if (activity == null || !activity.resumed) return;
+
+        activity.runOnUiThread(() -> Toast.makeText(
+                activity,
+                title + "\n" + text,
+                Toast.LENGTH_LONG
+        ).show());
     }
 
     private Button createHomeButton() {
