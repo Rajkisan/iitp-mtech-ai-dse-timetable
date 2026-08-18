@@ -12,6 +12,7 @@ Public timetable dashboard and Android app for the IIT Patna M.Tech 2026–27 ba
 - Android app remembers the email ID entered on Moodle login pages
 - Elective selector with localStorage persistence
 - Today view
+- Android class reminders with multiple notification lead times
 - Regular / elective filters
 - Responsive mobile layout
 - No backend required
@@ -56,6 +57,8 @@ To build or run it:
 3. Run the `app` configuration on an emulator or Android device.
 
 When a Moodle login page is opened inside the app, the email or username field is watched locally. If the entered value is an email ID, it is saved in Android `SharedPreferences` and filled back into Moodle login fields the next time they appear.
+
+The Android app can schedule class reminders before upcoming classes. Select one or more lead times from the **Android reminders** panel, such as 5, 10, 15, 30, 45 minutes or 1 hour before class. Reminders are scheduled through Android alarms, so they can still fire after the app is closed. The app also reschedules saved reminders after a phone restart or app update.
 
 After changing the web timetable files, sync them into the Android app assets:
 

@@ -1,11 +1,13 @@
 package com.iitp.aidsetimetable;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
@@ -28,6 +30,7 @@ import android.widget.ProgressBar;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "file:///android_asset/www/index.html";
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 5101;
 
     private WebView webView;
     private ProgressBar progressBar;
@@ -47,6 +50,7 @@ public class MainActivity extends Activity {
         configureWebView(webView);
 
         webView.addJavascriptInterface(new MoodleEmailBridge(this), "AndroidMoodle");
+        webView.addJavascriptInterface(new ReminderBridge(this), "AndroidReminders");
         webView.setWebViewClient(new TimetableWebViewClient());
         webView.setWebChromeClient(new TimetableWebChromeClient());
 
@@ -74,9 +78,18 @@ public class MainActivity extends Activity {
         setContentView(root);
 
         if (savedInstanceState == null) {
-            webView.loadUrl(HOME_URL);
+            webView.loadUrl(getInitialUrl(getIntent()));
         } else {
             webView.restoreState(savedInstanceState);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (webView != null) {
+            webView.loadUrl(getInitialUrl(intent));
         }
     }
 
@@ -119,6 +132,25 @@ public class MainActivity extends Activity {
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private String getInitialUrl(Intent intent) {
+        Uri uri = intent == null ? null : intent.getData();
+        if (uri == null) return HOME_URL;
+
+        String url = uri.toString();
+        return url.startsWith("http://") || url.startsWith("https://") ? url : HOME_URL;
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread(() -> requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION_REQUEST
+            ));
+        }
     }
 
     private Button createHomeButton() {
@@ -386,6 +418,34 @@ public class MainActivity extends Activity {
                 return "";
             }
             return normalized;
+        }
+    }
+
+    private class ReminderBridge {
+        private final ReminderScheduler reminderScheduler;
+
+        ReminderBridge(Context context) {
+            reminderScheduler = new ReminderScheduler(context);
+        }
+
+        @JavascriptInterface
+        public int configure(String payload) {
+            requestNotificationPermissionIfNeeded();
+            try {
+                return reminderScheduler.configure(payload);
+            } catch (Exception ignored) {
+                return 0;
+            }
+        }
+
+        @JavascriptInterface
+        public void test() {
+            requestNotificationPermissionIfNeeded();
+            Intent intent = new Intent(MainActivity.this, ReminderReceiver.class);
+            intent.putExtra(ReminderScheduler.EXTRA_TITLE, "Class reminder test");
+            intent.putExtra(ReminderScheduler.EXTRA_TEXT, "Notifications are enabled for this timetable.");
+            intent.putExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis());
+            sendBroadcast(intent);
         }
     }
 }

@@ -1,11 +1,19 @@
 let currentFilter = "all";
 let selectedElective = localStorage.getItem("iitp-ai-dse-elective") || "Computational Data Analysis";
+let selectedReminderOffsets = JSON.parse(localStorage.getItem("iitp-ai-dse-reminders") || "[10]");
 
 const timetableEl = document.getElementById("timetable");
 const courseGridEl = document.getElementById("courseGrid");
 const todayTitleEl = document.getElementById("todayTitle");
 const todayClassesEl = document.getElementById("todayClasses");
 const electiveSelectEl = document.getElementById("electiveSelect");
+const reminderPanelEl = document.getElementById("reminderPanel");
+const reminderOptionsEl = document.getElementById("reminderOptions");
+const reminderStatusEl = document.getElementById("reminderStatus");
+const reminderTestBtnEl = document.getElementById("reminderTestBtn");
+
+const REMINDER_OPTIONS = [5, 10, 15, 30, 45, 60];
+const REMINDER_LOOKAHEAD_DAYS = 30;
 
 electiveSelectEl.value = selectedElective;
 
@@ -29,6 +37,128 @@ function effectiveCourse(scheduleItem) {
 // so every "join" action routes to the course's Moodle page.
 function getMeetingUrl(course) {
   return course.moodleUrl;
+}
+
+function isAndroidApp() {
+  return Boolean(window.AndroidReminders);
+}
+
+function reminderLabel(minutes) {
+  return minutes === 60 ? "1 hr" : `${minutes} min`;
+}
+
+function parseStartTimeMinutes(timeRange) {
+  const start = timeRange.split(/\s*(?:-|–|â€“)\s*/)[0].trim();
+  const match = start.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const period = match[3].toUpperCase();
+
+  if (period === "PM" && hours !== 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+function nextClassOccurrences() {
+  const now = new Date();
+  const events = [];
+
+  for (let dayOffset = 0; dayOffset < REMINDER_LOOKAHEAD_DAYS; dayOffset += 1) {
+    const date = new Date(now);
+    date.setDate(now.getDate() + dayOffset);
+    date.setSeconds(0, 0);
+
+    const day = date.toLocaleDateString("en-US", { weekday: "long" });
+
+    SCHEDULE
+      .filter(item => item.day === day)
+      .forEach(item => {
+        const startMinutes = parseStartTimeMinutes(item.time);
+        const course = effectiveCourse(item);
+        if (startMinutes === null || !course) return;
+
+        const startsAt = new Date(date);
+        startsAt.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+
+        if (startsAt.getTime() <= now.getTime()) return;
+
+        events.push({
+          id: `${startsAt.toISOString()}-${course.id}-${item.time}`,
+          title: course.shortName,
+          text: `${item.time}${item.showLabTag ? " · Lab" : ""}`,
+          startsAt: startsAt.getTime(),
+          moodleUrl: course.moodleUrl || ""
+        });
+      });
+  }
+
+  return events;
+}
+
+function syncAndroidReminders() {
+  if (!reminderStatusEl) return;
+
+  if (!isAndroidApp()) {
+    reminderStatusEl.textContent = "Available in the Android app.";
+    return;
+  }
+
+  const payload = {
+    offsets: selectedReminderOffsets,
+    events: nextClassOccurrences()
+  };
+
+  try {
+    const scheduledCount = window.AndroidReminders.configure(JSON.stringify(payload));
+    const count = Number(scheduledCount) || 0;
+    reminderStatusEl.textContent = selectedReminderOffsets.length
+      ? `Scheduled ${count} class reminders for the next ${REMINDER_LOOKAHEAD_DAYS} days.`
+      : "Class reminders are off.";
+  } catch (error) {
+    reminderStatusEl.textContent = "Could not update Android reminders.";
+  }
+}
+
+function renderReminderSettings() {
+  if (!reminderPanelEl || !reminderOptionsEl) return;
+
+  if (isAndroidApp()) {
+    reminderPanelEl.classList.add("android-reminders");
+  }
+
+  reminderOptionsEl.innerHTML = REMINDER_OPTIONS.map(minutes => `
+    <label class="reminder-option">
+      <input type="checkbox" value="${minutes}" ${selectedReminderOffsets.includes(minutes) ? "checked" : ""} />
+      <span>${reminderLabel(minutes)}</span>
+    </label>
+  `).join("");
+
+  reminderOptionsEl.querySelectorAll("input").forEach(input => {
+    input.addEventListener("change", () => {
+      selectedReminderOffsets = [...reminderOptionsEl.querySelectorAll("input:checked")]
+        .map(item => Number(item.value));
+      localStorage.setItem("iitp-ai-dse-reminders", JSON.stringify(selectedReminderOffsets));
+      syncAndroidReminders();
+    });
+  });
+
+  syncAndroidReminders();
+}
+
+if (reminderTestBtnEl) {
+  reminderTestBtnEl.addEventListener("click", () => {
+    if (!isAndroidApp()) return;
+
+    try {
+      window.AndroidReminders.test();
+      reminderStatusEl.textContent = "Test notification sent.";
+    } catch (error) {
+      reminderStatusEl.textContent = "Could not send test notification.";
+    }
+  });
 }
 
 function renderCourseLinks(course) {
@@ -181,6 +311,7 @@ function renderAll() {
   renderTimetable();
   renderCourses();
   renderToday();
+  renderReminderSettings();
 }
 
 document.querySelectorAll("[data-filter]").forEach(button => {
