@@ -2,16 +2,41 @@ const { spawnSync } = require("child_process");
 const path = require("path");
 
 const rootDir = path.resolve(__dirname, "..");
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+const nodeCommand = process.execPath;
 
-spawnSync(npmCommand, ["run", "android:uninstall"], {
-  cwd: rootDir,
-  stdio: "inherit"
-});
+function runStep(label, args, options = {}) {
+  console.log(`\n${label}`);
+  const result = spawnSync(nodeCommand, args, {
+    cwd: rootDir,
+    stdio: "inherit",
+    ...options
+  });
 
-const install = spawnSync(npmCommand, ["run", "android:install"], {
-  cwd: rootDir,
-  stdio: "inherit"
-});
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(1);
+  }
 
-process.exit(install.status || 0);
+  return result.status === null ? 1 : result.status;
+}
+
+runStep("Uninstalling existing app if present...", [
+  "scripts/android-adb.cjs",
+  "uninstall",
+  "com.iitp.aidsetimetable"
+]);
+
+const syncStatus = runStep("Syncing Android assets...", [
+  "scripts/sync-android-assets.cjs"
+]);
+
+if (syncStatus !== 0) {
+  process.exit(syncStatus);
+}
+
+const installStatus = runStep("Installing debug app...", [
+  "scripts/android-gradle.cjs",
+  "installDebug"
+]);
+
+process.exit(installStatus);

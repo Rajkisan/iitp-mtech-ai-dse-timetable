@@ -40,6 +40,7 @@ const result = spawnSync(command, adbArgs, {
 
 if (result.error) {
   console.error(result.error.message);
+  process.exit(1);
 }
 
-process.exit(result.status || 0);
+process.exit(result.status === null ? 1 : result.status);
