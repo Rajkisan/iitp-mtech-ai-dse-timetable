@@ -21,4 +21,9 @@ for (const [source, destination] of files) {
   fs.copyFileSync(sourcePath, destinationPath);
 }
 
+const androidIndexPath = path.join(androidAssets, "index.html");
+const androidIndex = fs.readFileSync(androidIndexPath, "utf8")
+  .replace("<strong>NGVP</strong> &middot;", "Made with &hearts; by Raj Kisan |");
+fs.writeFileSync(androidIndexPath, androidIndex);
+
 console.log(`Synced ${files.length} web assets to ${path.relative(rootDir, androidAssets)}.`);
