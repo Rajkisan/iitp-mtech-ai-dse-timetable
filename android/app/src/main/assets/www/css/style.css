@@ -324,6 +324,7 @@ footer .inline-link { color: var(--navy); }
   display: none;
   margin-top: 10px;
   gap: 8px;
+  flex-wrap: wrap;
   justify-content: flex-end;
 }
 
@@ -384,6 +385,68 @@ footer .inline-link { color: var(--navy); }
 .modal-section h4 {
   margin: 0 0 10px;
   font-size: 13px;
+}
+
+.android-only-setting {
+  display: none;
+}
+
+.android-app .android-only-setting {
+  display: block;
+}
+
+.feature-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 0;
+  cursor: pointer;
+}
+
+.feature-toggle span {
+  min-width: 0;
+}
+
+.feature-toggle strong,
+.feature-toggle small {
+  display: block;
+}
+
+.feature-toggle small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.feature-toggle input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.setting-status {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.setting-status.ready {
+  color: var(--green);
+}
+
+.setting-status.attention {
+  color: #b45309;
+}
+
+.delivery-section .btn {
+  margin-top: 10px;
 }
 
 .course-reminder-list {

@@ -72,6 +72,7 @@
         <div class="reminder-test-actions">
           <button class="btn reminder-test" id="reminderTestBtn" type="button">Test now</button>
           <button class="btn reminder-test" id="reminderTestAlarmBtn" type="button">Test in 1 min</button>
+          <button class="btn reminder-test" id="reminderDeliveryBtn" type="button">Delivery settings</button>
         </div>
       </div>
     </section>
@@ -94,6 +95,24 @@
         <div class="modal-section">
           <h4>Apply to courses</h4>
           <div class="course-reminder-list" id="reminderCourseOptions" aria-label="Courses for reminders"></div>
+        </div>
+
+        <div class="modal-section android-only-setting">
+          <h4>Phone calendar</h4>
+          <label class="feature-toggle">
+            <span>
+              <strong>Google Calendar</strong>
+              <small>Add the selected courses to the primary Google calendar on this phone.</small>
+            </span>
+            <input id="calendarSyncOption" type="checkbox" />
+          </label>
+          <p class="setting-status" id="calendarSyncStatus">Calendar sync is off.</p>
+        </div>
+
+        <div class="modal-section android-only-setting delivery-section">
+          <h4>Notification delivery</h4>
+          <p class="setting-status" id="deliveryStatus">Checking Android settings...</p>
+          <button class="btn" id="modalDeliveryBtn" type="button">Review Android settings</button>
         </div>
 
         <div class="modal-actions">

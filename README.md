@@ -13,6 +13,7 @@ Public timetable dashboard and Android app for the IIT Patna M.Tech 2026–27 ba
 - Elective selector with localStorage persistence
 - Today view
 - Android class reminders with multiple notification lead times
+- Managed Google Calendar sync for selected courses
 - Regular / elective filters
 - Responsive mobile layout
 - No backend required
@@ -60,7 +61,11 @@ To build or run it:
 
 When a Moodle login page is opened inside the app, the email or username field is watched locally. If the entered value is an email ID, it is saved in Android `SharedPreferences` and filled back into Moodle login fields the next time they appear.
 
-The Android app can schedule class reminders before upcoming classes. Select one or more lead times from the **Android reminders** panel, such as 5, 10, 15, 30, 45 minutes or 1 hour before class. Reminders are scheduled through Android alarms, so they can still fire after the app is closed. The app also reschedules saved reminders after a phone restart or app update.
+The Android app can schedule class reminders before upcoming classes. Select one or more lead times from the **Android reminders** panel, such as 5, 10, 15, 30, 45 minutes or 1 hour before class. Reminders use a rolling Android alarm window, continue after the app is removed from recents, and are restored after a restart, time change, or app update. Use **Delivery settings** to allow notifications and exact alarms.
+
+The same settings modal can sync selected courses to the primary writable Google calendar on the phone. The app tracks the calendar event IDs it creates, so saving timetable or course changes updates those events and removes entries that are no longer selected. Disabling calendar sync removes all calendar entries managed by the app.
+
+Android deliberately blocks every app after the user presses **Force stop** in the system App info screen. Opening the app again restores its reminder schedule; swiping it out of recents does not have this limitation.
 
 After changing the web timetable files, sync them into the Android app assets:
 

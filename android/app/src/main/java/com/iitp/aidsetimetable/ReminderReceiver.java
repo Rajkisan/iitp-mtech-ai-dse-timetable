@@ -15,6 +15,8 @@ import android.os.Build;
 public class ReminderReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (!ReminderScheduler.ACTION_SHOW_REMINDER.equals(intent.getAction())) return;
+
         NotificationManager notificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (notificationManager == null) return;
@@ -26,6 +28,10 @@ public class ReminderReceiver extends BroadcastReceiver {
         String moodleUrl = intent.getStringExtra(ReminderScheduler.EXTRA_MOODLE_URL);
         String displayTitle = title == null || title.isEmpty() ? "Class reminder" : title;
         String displayText = text == null || text.isEmpty() ? "Your class starts soon." : text;
+        int notificationId = intent.getIntExtra(
+                ReminderScheduler.EXTRA_NOTIFICATION_ID,
+                (int) (System.currentTimeMillis() % Integer.MAX_VALUE)
+        );
 
         MainActivity.showForegroundReminder(displayTitle, displayText);
 
@@ -47,7 +53,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         }
         PendingIntent contentIntent = PendingIntent.getActivity(
                 context,
-                (int) (System.currentTimeMillis() % Integer.MAX_VALUE),
+                notificationId,
                 openIntent,
                 flags
         );
@@ -63,6 +69,8 @@ public class ReminderReceiver extends BroadcastReceiver {
                 .setCategory(android.app.Notification.CATEGORY_ALARM)
                 .setDefaults(android.app.Notification.DEFAULT_ALL)
                 .setAutoCancel(true)
+                .setOnlyAlertOnce(false)
+                .setStyle(new android.app.Notification.BigTextStyle().bigText(displayText))
                 .setShowWhen(true);
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -73,11 +81,7 @@ public class ReminderReceiver extends BroadcastReceiver {
             builder.setColor(Color.rgb(15, 47, 104));
         }
 
-        notificationManager.notify(
-                (int) (intent.getLongExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis())
-                        % Integer.MAX_VALUE),
-                builder.build()
-        );
+        notificationManager.notify(notificationId, builder.build());
     }
 
     private void createChannel(NotificationManager notificationManager) {

@@ -3,6 +3,8 @@ package com.iitp.aidsetimetable;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -15,6 +17,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -29,23 +33,33 @@ import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.lang.ref.WeakReference;
 
 public class MainActivity extends Activity {
     private static final String HOME_URL = "file:///android_asset/www/index.html";
     private static final int NOTIFICATION_PERMISSION_REQUEST = 5101;
+    private static final int CALENDAR_PERMISSION_REQUEST = 5102;
     private static WeakReference<MainActivity> activeActivity = new WeakReference<>(null);
     private boolean resumed;
 
     private WebView webView;
     private ProgressBar progressBar;
     private Button homeButton;
+    private ReminderScheduler reminderScheduler;
+    private CalendarSyncManager calendarSyncManager;
+    private boolean permissionRequestInProgress;
+    private boolean calendarPermissionPending;
+    private boolean criticalDeliveryPending;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         configureCookieManager();
+        reminderScheduler = new ReminderScheduler(this);
+        calendarSyncManager = new CalendarSyncManager(this);
 
         progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progressBar.setMax(100);
@@ -55,7 +69,7 @@ public class MainActivity extends Activity {
         configureWebView(webView);
 
         webView.addJavascriptInterface(new MoodleEmailBridge(this), "AndroidMoodle");
-        webView.addJavascriptInterface(new ReminderBridge(this), "AndroidReminders");
+        webView.addJavascriptInterface(new ReminderBridge(), "AndroidReminders");
         webView.setWebViewClient(new TimetableWebViewClient());
         webView.setWebChromeClient(new TimetableWebChromeClient());
 
@@ -117,6 +131,12 @@ public class MainActivity extends Activity {
         super.onResume();
         resumed = true;
         activeActivity = new WeakReference<>(this);
+        if (reminderScheduler != null) {
+            reminderScheduler.rescheduleIfDeliveryModeChanged();
+        }
+        if (webView != null) {
+            webView.postDelayed(this::notifyDeliveryStatusChanged, 250L);
+        }
     }
 
     @Override
@@ -159,10 +179,208 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
-            runOnUiThread(() -> requestPermissions(
-                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                    NOTIFICATION_PERMISSION_REQUEST
-            ));
+            runOnUiThread(() -> {
+                if (permissionRequestInProgress) return;
+                permissionRequestInProgress = true;
+                requestPermissions(
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST
+                );
+            });
+        }
+    }
+
+    private void requestCalendarPermissionIfNeeded() {
+        calendarPermissionPending = true;
+        runOnUiThread(() -> {
+            if (calendarSyncManager.hasPermissions()) {
+                calendarPermissionPending = false;
+                syncSavedCalendarAsync();
+                return;
+            }
+            if (permissionRequestInProgress) return;
+
+            permissionRequestInProgress = true;
+            calendarPermissionPending = false;
+            requestPermissions(
+                    new String[]{Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR},
+                    CALENDAR_PERMISSION_REQUEST
+            );
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        permissionRequestInProgress = false;
+
+        if (requestCode == CALENDAR_PERMISSION_REQUEST) {
+            if (calendarSyncManager.hasPermissions()) {
+                syncSavedCalendarAsync();
+            } else {
+                notifyCalendarSyncResult(CalendarSyncManager.RESULT_PERMISSION_REQUIRED);
+            }
+        }
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST && !notificationsEnabled()) {
+            criticalDeliveryPending = false;
+        }
+
+        notifyDeliveryStatusChanged();
+        if (calendarPermissionPending) {
+            requestCalendarPermissionIfNeeded();
+        }
+        if (criticalDeliveryPending) {
+            requestCriticalDeliveryAccess();
+        }
+    }
+
+    private void syncSavedCalendarAsync() {
+        new Thread(() -> {
+            int result = calendarSyncManager.syncSaved();
+            notifyCalendarSyncResult(result);
+        }, "calendar-sync").start();
+    }
+
+    private void notifyCalendarSyncResult(int result) {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onAndroidCalendarSyncResult && window.onAndroidCalendarSyncResult(" + result + ");",
+                null
+        ));
+    }
+
+    private void notifyDeliveryStatusChanged() {
+        if (webView == null) return;
+        webView.post(() -> webView.evaluateJavascript(
+                "window.onAndroidDeliveryStatusChanged && window.onAndroidDeliveryStatusChanged();",
+                null
+        ));
+    }
+
+    private boolean notificationsEnabled() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+
+        NotificationManager manager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                && !manager.areNotificationsEnabled()) return false;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = manager.getNotificationChannel(ReminderScheduler.CHANNEL_ID);
+            return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+        }
+        return true;
+    }
+
+    private boolean batteryUnrestricted() {
+        PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        return powerManager != null
+                && powerManager.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    private String deliveryStatusJson() {
+        JSONObject status = new JSONObject();
+        try {
+            status.put("notifications", notificationsEnabled());
+            status.put("exactAlarms", reminderScheduler.canScheduleExactAlarms());
+            status.put("batteryUnrestricted", batteryUnrestricted());
+            status.put("calendarPermission", calendarSyncManager.hasPermissions());
+            status.put("scheduledCount", reminderScheduler.getScheduledCount());
+        } catch (Exception ignored) {
+            return "{}";
+        }
+        return status.toString();
+    }
+
+    private void openDeliverySettings() {
+        runOnUiThread(() -> {
+            if (!notificationsEnabled()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    requestNotificationPermissionIfNeeded();
+                    return;
+                }
+                openNotificationSettings();
+                return;
+            }
+
+            if (!reminderScheduler.canScheduleExactAlarms()
+                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startSettingsIntent(intent);
+                return;
+            }
+
+            if (!batteryUnrestricted()) {
+                startSettingsIntent(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                return;
+            }
+
+            openNotificationSettings();
+        });
+    }
+
+    private void requestCriticalDeliveryAccess() {
+        criticalDeliveryPending = true;
+        runOnUiThread(() -> {
+            if (permissionRequestInProgress) return;
+
+            if (!notificationsEnabled()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                        && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    requestNotificationPermissionIfNeeded();
+                } else {
+                    criticalDeliveryPending = false;
+                    openNotificationSettings();
+                }
+                return;
+            }
+
+            if (!reminderScheduler.canScheduleExactAlarms()
+                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                criticalDeliveryPending = false;
+                Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startSettingsIntent(intent);
+                return;
+            }
+
+            criticalDeliveryPending = false;
+        });
+    }
+
+    private void openNotificationSettings() {
+        Intent intent;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+            intent.putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        } else {
+            intent = new Intent("android.settings.APP_NOTIFICATION_SETTINGS");
+            intent.putExtra("app_package", getPackageName());
+            intent.putExtra("app_uid", getApplicationInfo().uid);
+        }
+        startSettingsIntent(intent);
+    }
+
+    private void startSettingsIntent(Intent intent) {
+        try {
+            startActivity(intent);
+        } catch (ActivityNotFoundException ignored) {
+            Intent fallback = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            fallback.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(fallback);
         }
     }
 
@@ -446,12 +664,6 @@ public class MainActivity extends Activity {
     }
 
     private class ReminderBridge {
-        private final ReminderScheduler reminderScheduler;
-
-        ReminderBridge(Context context) {
-            reminderScheduler = new ReminderScheduler(context);
-        }
-
         @JavascriptInterface
         public int configure(String payload) {
             requestNotificationPermissionIfNeeded();
@@ -465,13 +677,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public int test() {
             requestNotificationPermissionIfNeeded();
+            if (!notificationsEnabled()) return 0;
+
             try {
+                int notificationId = (int) (System.currentTimeMillis() % Integer.MAX_VALUE);
                 Intent intent = new Intent(MainActivity.this, ReminderReceiver.class);
                 intent.setAction(ReminderScheduler.ACTION_SHOW_REMINDER);
                 intent.setPackage(getPackageName());
                 intent.putExtra(ReminderScheduler.EXTRA_TITLE, "Class reminder test");
                 intent.putExtra(ReminderScheduler.EXTRA_TEXT, "Notifications are enabled for this timetable.");
                 intent.putExtra(ReminderScheduler.EXTRA_STARTS_AT, System.currentTimeMillis());
+                intent.putExtra(ReminderScheduler.EXTRA_NOTIFICATION_ID, notificationId);
                 sendBroadcast(intent);
                 return 1;
             } catch (Exception ignored) {
@@ -489,6 +705,34 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_SHORT
             ).show());
             return scheduled ? 1 : 0;
+        }
+
+        @JavascriptInterface
+        public int syncCalendar(String payload, boolean enabled) {
+            calendarSyncManager.saveRequest(payload, enabled);
+            if (!calendarSyncManager.hasPermissions()) {
+                if (enabled || calendarSyncManager.hasManagedEvents()) {
+                    requestCalendarPermissionIfNeeded();
+                    return CalendarSyncManager.RESULT_PERMISSION_REQUIRED;
+                }
+                return 0;
+            }
+            return calendarSyncManager.sync(payload, enabled);
+        }
+
+        @JavascriptInterface
+        public String getStatus() {
+            return deliveryStatusJson();
+        }
+
+        @JavascriptInterface
+        public void openDeliverySettings() {
+            MainActivity.this.openDeliverySettings();
+        }
+
+        @JavascriptInterface
+        public void requestCriticalDeliveryAccess() {
+            MainActivity.this.requestCriticalDeliveryAccess();
         }
     }
 }
